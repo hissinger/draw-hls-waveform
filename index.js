@@ -2,7 +2,11 @@ let audio = document.getElementById("audio");
 let audioUrl =
   "http://127.0.0.1:8080/625306f8-f5b8-11eb-912e-0241da8f597e_bridge.m3u8";
 let keyUrl = "http://127.0.0.1:8080/qybczk-hls.ssl";
-let audioBuffer = [];
+
+let worker = new Worker("./worker.js");
+worker.onmessage = (event) => {
+  wavesurfer.loadBlob(event.data);
+};
 
 // wavesurfer
 let wavesurfer = WaveSurfer.create({
@@ -65,31 +69,17 @@ if (Hls.isSupported()) {
     console.log("Hls.Events.ERROR", event, data);
   });
   hls.on(Hls.Events.BUFFER_APPENDING, (event, data) => {
-    audioBuffer.push(data.data);
+    let msg = {
+      type: "data",
+      buffer: data.data,
+    };
+    worker.postMessage(msg);
   });
-  hls.on(Hls.Events.BUFFER_EOS, (event, data) => {
+  hls.on(Hls.Events.BUFFER_EOS, async (event, data) => {
     console.log("Hls.Events.BUFFER_EOS");
-    let blob = makeBlob(audioBuffer);
-    wavesurfer.loadBlob(blob);
+    let msg = {
+      type: "end",
+    };
+    worker.postMessage(msg);
   });
-}
-
-function makeBlob(data) {
-  console.log("make blob...");
-  return new Blob([arrayConcat(data)], {
-    type: "application/octet-stream",
-  });
-}
-
-function arrayConcat(inputArray) {
-  let totalLength = inputArray.reduce((prev, cur) => {
-    return prev + cur.length;
-  }, 0);
-  let result = new Uint8Array(totalLength);
-  let offset = 0;
-  inputArray.forEach((element) => {
-    result.set(element, offset);
-    offset += element.length;
-  });
-  return result;
 }
